@@ -10,6 +10,7 @@
 #include <boost/regex.hpp>
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include <pcre2.h>
+#include <re2/re2.h>
 #include <iomanip>
 
 using namespace std;
@@ -191,6 +192,33 @@ void test_pcre_match(const vector<string>& words, const string& pattern_name, co
     }
 }
 
+void test_re2_match(const vector<string>& words, const string& pattern_name, const string& pattern) {
+    try {
+        RE2 re(pattern);
+        if (!re.ok()) {
+            cerr << "RE2 compilation failed for pattern '" << pattern << "': " << re.error() << endl;
+            return;
+        }
+        
+        size_t matches = 0;
+        
+        auto start = high_resolution_clock::now();
+        for (const auto& word : words) {
+            if (RE2::FullMatch(re2::StringPiece(word), re)) {
+                matches++;
+            }
+        }
+        auto end = high_resolution_clock::now();
+        
+        auto duration = duration_cast<microseconds>(end - start);
+        TestResult result{"match", "RE2", pattern_name, duration.count(), static_cast<int>(matches)};
+        all_results.push_back(result);
+        print_test_result(result);
+    } catch (const exception& e) {
+        cerr << "RE2 error with pattern '" << pattern << "': " << e.what() << endl;
+    }
+}
+
 void test_std_regex_search(const string& text, const string& pattern_name, const string& pattern) {
     // Функция использует std::regex для поиска паттерна в тексте
     // Также замеряется время работы
@@ -292,6 +320,33 @@ void test_pcre_search(const string& text, const string& pattern_name, const stri
         pcre2_code_free(re);
     } catch (const exception& e) {
         cerr << "PCRE search error with pattern '" << pattern << "': " << e.what() << endl;
+    }
+}
+
+void test_re2_search(const string& text, const string& pattern_name, const string& pattern) {
+    try {
+        RE2 re(pattern);
+        if (!re.ok()) {
+            cerr << "RE2 compilation failed for pattern '" << pattern << "': " << re.error() << endl;
+            return;
+        }
+        
+        size_t matches = 0;
+        re2::StringPiece input(text);
+        int count;
+        
+        auto start = high_resolution_clock::now();
+        while (RE2::FindAndConsume(&input, re, nullptr)) {
+            count++;
+        }
+        auto end_time = high_resolution_clock::now();
+        
+        auto duration = duration_cast<microseconds>(end_time - start);
+        TestResult result{"search", "RE2", pattern_name, duration.count(), static_cast<int>(matches)};
+        all_results.push_back(result);
+        print_test_result(result);
+    } catch (const exception& e) {
+        cerr << "RE2 search error with pattern '" << pattern << "': " << e.what() << endl;
     }
 }
 
