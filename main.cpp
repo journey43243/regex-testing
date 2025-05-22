@@ -91,7 +91,7 @@ void print_results_header() {
     cout << "|-----------|--------------|--------------------------------|---------|-----------|\n";
 }
 
-// Новые функции для тестирования компиляции
+//функции для тестирования компиляции
 void test_std_regex_compile(const string& pattern_name, const string& pattern) {
     try {
         auto start = high_resolution_clock::now();
@@ -166,7 +166,6 @@ void test_re2_compile(const string& pattern_name, const string& pattern) {
     }
 }
 
-// Существующие функции (остаются без изменений)
 void test_std_regex_match(const vector<string>& words, const string& pattern_name, const string& pattern) {
     try {
         regex re(pattern);
@@ -414,7 +413,7 @@ void test_re2_search(const string& text, const string& pattern_name, const strin
     }
 }
 
-// Новый паттерн для извлечения расширений файлов
+//паттерн для извлечения расширений файлов
 const string file_extension_pattern = R"((?:\.([a-zA-Z0-9]+))$)";
 
 // Функции для тестирования извлечения расширений
@@ -512,7 +511,7 @@ void test_pcre_extensions(const vector<string>& paths) {
                 nullptr
             );
             
-            if (rc > 1) { // Есть как минимум одна группа захвата
+            if (rc > 1) {
                 PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(match_data);
                 size_t start = ovector[2];
                 size_t end = ovector[3];
@@ -586,7 +585,7 @@ string get_filename_without_extension(const string& path) {
     return path.substr(last_slash == string::npos ? 0 : last_slash + 1);
 }
 
-// Новый паттерн для поиска файлов по имени без учета расширения
+//паттерн для поиска файлов по имени без учета расширения
 const string filename_pattern = R"(^.*[\\/](file\d+)(?:\.[a-zA-Z0-9]+)?$)";
 
 // Функции для тестирования поиска файлов по имени
@@ -693,7 +692,7 @@ void test_pcre_find_files(const vector<string>& paths, const string& filename) {
                 nullptr
             );
             
-            if (rc > 1) { // Есть как минимум одна группа захвата
+            if (rc > 1) {
                 PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(match_data);
                 size_t start_pos = ovector[2];
                 size_t end_pos = ovector[3];
@@ -828,7 +827,7 @@ int main() {
     }
 
      cout << "\n\n=== Testing FILE EXTENSIONS EXTRACTION ===\n";
-    ifstream paths_file("file_formats_tests.txt"); // Файл с 1 млн путей
+    ifstream paths_file("file_formats_tests.txt");
     if (!paths_file) {
         cerr << "Cannot open file_formats_tests.txt\n";
         return 1;
@@ -871,7 +870,6 @@ int main() {
     warmup_cache(search_paths);
     cout << "done\n";
 
-    // Выбираем конкретное имя файла для поиска (например, "file12345")
     string search_filename = "file12345";
     cout << "\nSearching for files named '" << search_filename << "' with any extension\n";
     print_results_header();
