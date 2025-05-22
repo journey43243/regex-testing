@@ -90,9 +90,83 @@ void print_results_header() {
     cout << "|-----------|--------------|--------------------------------|---------|-----------|\n";
 }
 
+// Новые функции для тестирования компиляции
+void test_std_regex_compile(const string& pattern_name, const string& pattern) {
+    try {
+        auto start = high_resolution_clock::now();
+        regex re(pattern);
+        auto end = high_resolution_clock::now();
+        auto duration = duration_cast<microseconds>(end - start);
+        
+        TestResult result{"compile", "std::regex", pattern_name, duration.count(), 0};
+        all_results.push_back(result);
+        print_test_result(result);
+    } catch (const exception& e) {
+        cerr << "std::regex compile error with pattern '" << pattern << "': " << e.what() << endl;
+    }
+}
+
+void test_boost_regex_compile(const string& pattern_name, const string& pattern) {
+    try {
+        auto start = high_resolution_clock::now();
+        boost::regex re(pattern);
+        auto end = high_resolution_clock::now();
+        auto duration = duration_cast<microseconds>(end - start);
+        
+        TestResult result{"compile", "boost::regex", pattern_name, duration.count(), 0};
+        all_results.push_back(result);
+        print_test_result(result);
+    } catch (const exception& e) {
+        cerr << "boost::regex compile error with pattern '" << pattern << "': " << e.what() << endl;
+    }
+}
+
+void test_pcre_compile(const string& pattern_name, const string& pattern) {
+    try {
+        int errnum;
+        PCRE2_SIZE erroff;
+        
+        auto start = high_resolution_clock::now();
+        pcre2_code* re = pcre2_compile(
+            (PCRE2_SPTR8)pattern.c_str(),
+            PCRE2_ZERO_TERMINATED,
+            0,
+            &errnum,
+            &erroff,
+            nullptr
+        );
+        auto end = high_resolution_clock::now();
+        auto duration = duration_cast<microseconds>(end - start);
+        
+        TestResult result{"compile", "PCRE", pattern_name, duration.count(), 0};
+        all_results.push_back(result);
+        print_test_result(result);
+        
+        if (re) {
+            pcre2_code_free(re);
+        }
+    } catch (const exception& e) {
+        cerr << "PCRE compile error with pattern '" << pattern << "': " << e.what() << endl;
+    }
+}
+
+void test_re2_compile(const string& pattern_name, const string& pattern) {
+    try {
+        auto start = high_resolution_clock::now();
+        RE2 re(pattern);
+        auto end = high_resolution_clock::now();
+        auto duration = duration_cast<microseconds>(end - start);
+        
+        TestResult result{"compile", "RE2", pattern_name, duration.count(), 0};
+        all_results.push_back(result);
+        print_test_result(result);
+    } catch (const exception& e) {
+        cerr << "RE2 compile error with pattern '" << pattern << "': " << e.what() << endl;
+    }
+}
+
+// Существующие функции (остаются без изменений)
 void test_std_regex_match(const vector<string>& words, const string& pattern_name, const string& pattern) {
-    // Функция использует srd::regex для сравнения по паттерну со строкой
-    // Также замеряется время работы
     try {
         regex re(pattern);
         size_t matches = 0;
@@ -115,8 +189,6 @@ void test_std_regex_match(const vector<string>& words, const string& pattern_nam
 }
 
 void test_boost_regex_match(const vector<string>& words, const string& pattern_name, const string& pattern) {
-    // Функция использует boost::regex для сравнения по паттерну со строкой
-    // Также замеряется время работы
     try {
         boost::regex re(pattern);
         size_t matches = 0;
@@ -139,8 +211,6 @@ void test_boost_regex_match(const vector<string>& words, const string& pattern_n
 }
 
 void test_pcre_match(const vector<string>& words, const string& pattern_name, const string& pattern) {
-    // Функция использует pcre для сравнения по паттерну со строкой
-    // Также замеряется время работы
     try {
         int errnum;
         PCRE2_SIZE erroff;
@@ -220,8 +290,6 @@ void test_re2_match(const vector<string>& words, const string& pattern_name, con
 }
 
 void test_std_regex_search(const string& text, const string& pattern_name, const string& pattern) {
-    // Функция использует std::regex для поиска паттерна в тексте
-    // Также замеряется время работы
     try {
         regex re(pattern);
         size_t matches = 0;
@@ -242,8 +310,6 @@ void test_std_regex_search(const string& text, const string& pattern_name, const
 }
 
 void test_boost_regex_search(const string& text, const string& pattern_name, const string& pattern) {
-    // Функция использует boost::regex для поиска паттерна в тексте
-    // Также замеряется время работы
     try {
         boost::regex re(pattern);
         size_t matches = 0;
@@ -264,8 +330,6 @@ void test_boost_regex_search(const string& text, const string& pattern_name, con
 }
 
 void test_pcre_search(const string& text, const string& pattern_name, const string& pattern) {
-    // Функция использует pcre2 для поиска паттерна в тексте
-    // Также замеряется время работы
     try {
         int errnum;
         PCRE2_SIZE erroff;
@@ -333,11 +397,10 @@ void test_re2_search(const string& text, const string& pattern_name, const strin
         
         size_t matches = 0;
         re2::StringPiece input(text);
-        int count;
         
         auto start = high_resolution_clock::now();
-        while (RE2::FindAndConsume(&input, re, nullptr)) {
-            count++;
+        while (RE2::FindAndConsume(&input, re)) {
+            matches++;
         }
         auto end_time = high_resolution_clock::now();
         
@@ -350,16 +413,18 @@ void test_re2_search(const string& text, const string& pattern_name, const strin
     }
 }
 
-struct ComparisonResult {
-    string library;
-    long long avg_match_time;
-    long long avg_search_time;
-    int match_count;
-    int search_count;
-};
-
-
 int main() {
+    // Тестирование компиляции регулярных выражений
+    cout << "\n=== Testing REGEX COMPILATION ===\n";
+    print_results_header();
+    
+    for (const auto& [name, pattern] : word_patterns) {
+        test_std_regex_compile(name, pattern);
+        test_boost_regex_compile(name, pattern);
+        test_pcre_compile(name, pattern);
+        test_re2_compile(name, pattern);
+    }
+
     // Тестирование match на отдельных словах
     ifstream words_file("match.txt");
     if (!words_file) {
@@ -374,7 +439,7 @@ int main() {
     }
     words_file.close();
 
-    cout << "Loaded " << words.size() << " words for match testing\n";
+    cout << "\nLoaded " << words.size() << " words for match testing\n";
     cout << "Warming up cache... ";
     warmup_cache(words);
     cout << "done\n";
@@ -389,6 +454,7 @@ int main() {
         test_std_regex_match(words, name, pattern);
         test_boost_regex_match(words, name, pattern);
         test_pcre_match(words, name, pattern);
+        test_re2_match(words, name, pattern);
     }
 
     // Тестирование search в "Войне и мире"
@@ -408,6 +474,7 @@ int main() {
         test_std_regex_search(text, name, pattern);
         test_boost_regex_search(text, name, pattern);
         test_pcre_search(text, name, pattern);
+        test_re2_search(text, name, pattern);
     }
 
     return 0;
