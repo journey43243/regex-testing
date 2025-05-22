@@ -575,6 +575,194 @@ void test_re2_extensions(const vector<string>& paths) {
     }
 }
 
+string get_filename_without_extension(const string& path) {
+    size_t last_slash = path.find_last_of("/\\");
+    size_t last_dot = path.find_last_of('.');
+    
+    if (last_dot != string::npos && (last_slash == string::npos || last_dot > last_slash)) {
+        return path.substr(last_slash == string::npos ? 0 : last_slash + 1, 
+                          last_dot - (last_slash == string::npos ? 0 : last_slash + 1));
+    }
+    return path.substr(last_slash == string::npos ? 0 : last_slash + 1);
+}
+
+// Новый паттерн для поиска файлов по имени без учета расширения
+const string filename_pattern = R"(^.*[\\/](file\d+)(?:\.[a-zA-Z0-9]+)?$)";
+
+// Функции для тестирования поиска файлов по имени
+void test_std_regex_find_files(const vector<string>& paths, const string& filename) {
+    try {
+        string pattern = R"(^.*[\\/]()" + filename + R"()(?:\.[a-zA-Z0-9]+)?$)";
+        regex re(pattern);
+        vector<string> found_files;
+        
+        auto start = high_resolution_clock::now();
+        for (const auto& path : paths) {
+            smatch match;
+            if (regex_search(path, match, re) && match.size() > 1) {
+                found_files.push_back(path);
+            }
+        }
+        auto end = high_resolution_clock::now();
+        
+        auto duration = duration_cast<microseconds>(end - start);
+        TestResult result{"find_file", "std::regex", "Find by name", duration.count(), static_cast<int>(found_files.size())};
+        all_results.push_back(result);
+        print_test_result(result);
+        
+        // Вывод первых 5 найденных файлов (если есть)
+        if (!found_files.empty()) {
+            cout << "std::regex found " << found_files.size() << " files. Examples:\n";
+            for (size_t i = 0; i < min(found_files.size(), size_t(5)); ++i) {
+                cout << "  " << found_files[i] << "\n";
+            }
+            if (found_files.size() > 5) cout << "  ...\n";
+        }
+        cout << "\n";
+    } catch (const exception& e) {
+        cerr << "std::regex find files error: " << e.what() << endl;
+    }
+}
+
+void test_boost_regex_find_files(const vector<string>& paths, const string& filename) {
+    try {
+        string pattern = R"(^.*[\\/]()" + filename + R"()(?:\.[a-zA-Z0-9]+)?$)";
+        boost::regex re(pattern);
+        vector<string> found_files;
+        
+        auto start = high_resolution_clock::now();
+        for (const auto& path : paths) {
+            boost::smatch match;
+            if (boost::regex_search(path, match, re) && match.size() > 1) {
+                found_files.push_back(path);
+            }
+        }
+        auto end = high_resolution_clock::now();
+        
+        auto duration = duration_cast<microseconds>(end - start);
+        TestResult result{"find_file", "boost::regex", "Find by name", duration.count(), static_cast<int>(found_files.size())};
+        all_results.push_back(result);
+        print_test_result(result);
+        
+        if (!found_files.empty()) {
+            cout << "boost::regex found " << found_files.size() << " files. Examples:\n";
+            for (size_t i = 0; i < min(found_files.size(), size_t(5)); ++i) {
+                cout << "  " << found_files[i] << "\n";
+            }
+            if (found_files.size() > 5) cout << "  ...\n";
+        }
+        cout << "\n";
+    } catch (const exception& e) {
+        cerr << "boost::regex find files error: " << e.what() << endl;
+    }
+}
+
+void test_pcre_find_files(const vector<string>& paths, const string& filename) {
+    try {
+        string pattern = R"(^.*[\\/]()" + filename + R"()(?:\.[a-zA-Z0-9]+)?$)";
+        int errnum;
+        PCRE2_SIZE erroff;
+        pcre2_code* re = pcre2_compile(
+            (PCRE2_SPTR8)pattern.c_str(),
+            PCRE2_ZERO_TERMINATED,
+            0,
+            &errnum,
+            &erroff,
+            nullptr
+        );
+        
+        if (!re) {
+            PCRE2_UCHAR buffer[256];
+            pcre2_get_error_message(errnum, buffer, sizeof(buffer));
+            cerr << "PCRE compilation failed: " << buffer << endl;
+            return;
+        }
+        
+        pcre2_match_data* match_data = pcre2_match_data_create_from_pattern(re, nullptr);
+        vector<string> found_files;
+        
+        auto start = high_resolution_clock::now();
+        for (const auto& path : paths) {
+            int rc = pcre2_match(
+                re,
+                (PCRE2_SPTR8)path.c_str(),
+                path.length(),
+                0,
+                0,
+                match_data,
+                nullptr
+            );
+            
+            if (rc > 1) { // Есть как минимум одна группа захвата
+                PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(match_data);
+                size_t start_pos = ovector[2];
+                size_t end_pos = ovector[3];
+                if (start_pos != PCRE2_UNSET && end_pos != PCRE2_UNSET) {
+                    found_files.push_back(path);
+                }
+            }
+        }
+        auto end_time = high_resolution_clock::now();
+        
+        auto duration = duration_cast<microseconds>(end_time - start);
+        TestResult result{"find_file", "PCRE", "Find by name", duration.count(), static_cast<int>(found_files.size())};
+        all_results.push_back(result);
+        print_test_result(result);
+        
+        if (!found_files.empty()) {
+            cout << "PCRE found " << found_files.size() << " files. Examples:\n";
+            for (size_t i = 0; i < min(found_files.size(), size_t(5)); ++i) {
+                cout << "  " << found_files[i] << "\n";
+            }
+            if (found_files.size() > 5) cout << "  ...\n";
+        }
+        cout << "\n";
+        
+        pcre2_match_data_free(match_data);
+        pcre2_code_free(re);
+    } catch (const exception& e) {
+        cerr << "PCRE find files error: " << e.what() << endl;
+    }
+}
+
+void test_re2_find_files(const vector<string>& paths, const string& filename) {
+    try {
+        string pattern = R"(^.*[\\/]()" + filename + R"()(?:\.[a-zA-Z0-9]+)?$)";
+        RE2 re(pattern);
+        if (!re.ok()) {
+            cerr << "RE2 compilation failed: " << re.error() << endl;
+            return;
+        }
+        
+        vector<string> found_files;
+        
+        auto start = high_resolution_clock::now();
+        for (const auto& path : paths) {
+            if (RE2::FullMatch(path, re)) {
+                found_files.push_back(path);
+            }
+        }
+        auto end_time = high_resolution_clock::now();
+        
+        auto duration = duration_cast<microseconds>(end_time - start);
+        TestResult result{"find_file", "RE2", "Find by name", duration.count(), static_cast<int>(found_files.size())};
+        all_results.push_back(result);
+        print_test_result(result);
+        
+        if (!found_files.empty()) {
+            cout << "RE2 found " << found_files.size() << " files. Examples:\n";
+            for (size_t i = 0; i < min(found_files.size(), size_t(5)); ++i) {
+                cout << "  " << found_files[i] << "\n";
+            }
+            if (found_files.size() > 5) cout << "  ...\n";
+        }
+        cout << "\n";
+    } catch (const exception& e) {
+        cerr << "RE2 find files error: " << e.what() << endl;
+    }
+}
+
+
 int main() {
     // Тестирование компиляции регулярных выражений
     cout << "\n=== Testing REGEX COMPILATION ===\n";
@@ -663,6 +851,35 @@ int main() {
     test_boost_regex_extensions(paths);
     test_pcre_extensions(paths);
     test_re2_extensions(paths);
+
+        cout << "\n\n=== Testing FILE SEARCH BY NAME ===\n";
+    ifstream search_paths_file("files_search_tests.txt");
+    if (!search_paths_file) {
+        cerr << "Cannot open files_search_tests.txt\n";
+        return 1;
+    }
+
+    vector<string> search_paths;
+    string search_path;
+    while (getline(search_paths_file, search_path)) {
+        search_paths.push_back(search_path);
+    }
+    search_paths_file.close();
+
+    cout << "\nLoaded " << search_paths.size() << " paths for file search testing\n";
+    cout << "Warming up cache... ";
+    warmup_cache(search_paths);
+    cout << "done\n";
+
+    // Выбираем конкретное имя файла для поиска (например, "file12345")
+    string search_filename = "file12345";
+    cout << "\nSearching for files named '" << search_filename << "' with any extension\n";
+    print_results_header();
+
+    test_std_regex_find_files(search_paths, search_filename);
+    test_boost_regex_find_files(search_paths, search_filename);
+    test_pcre_find_files(search_paths, search_filename);
+    test_re2_find_files(search_paths, search_filename);
 
     return 0;
 
