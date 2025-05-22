@@ -12,6 +12,7 @@
 #include <pcre2.h>
 #include <re2/re2.h>
 #include <iomanip>
+#include <unordered_set>
 
 using namespace std;
 using namespace std::chrono;
@@ -413,6 +414,167 @@ void test_re2_search(const string& text, const string& pattern_name, const strin
     }
 }
 
+// Новый паттерн для извлечения расширений файлов
+const string file_extension_pattern = R"((?:\.([a-zA-Z0-9]+))$)";
+
+// Функции для тестирования извлечения расширений
+void test_std_regex_extensions(const vector<string>& paths) {
+    try {
+        regex re(file_extension_pattern);
+        unordered_set<string> extensions;
+        
+        auto start = high_resolution_clock::now();
+        for (const auto& path : paths) {
+            smatch match;
+            if (regex_search(path, match, re) && match.size() > 1) {
+                extensions.insert(match[1].str());
+            }
+        }
+        auto end = high_resolution_clock::now();
+        
+        auto duration = duration_cast<microseconds>(end - start);
+        TestResult result{"extract", "std::regex", "File extensions", duration.count(), static_cast<int>(extensions.size())};
+        all_results.push_back(result);
+        print_test_result(result);
+        
+        // Вывод уникальных расширений
+        cout << "std::regex found " << extensions.size() << " unique extensions:\n";
+        for (const auto& ext : extensions) {
+            cout << ext << " ";
+        }
+        cout << "\n\n";
+    } catch (const exception& e) {
+        cerr << "std::regex extensions error: " << e.what() << endl;
+    }
+}
+
+void test_boost_regex_extensions(const vector<string>& paths) {
+    try {
+        boost::regex re(file_extension_pattern);
+        unordered_set<string> extensions;
+        
+        auto start = high_resolution_clock::now();
+        for (const auto& path : paths) {
+            boost::smatch match;
+            if (boost::regex_search(path, match, re) && match.size() > 1) {
+                extensions.insert(match[1].str());
+            }
+        }
+        auto end = high_resolution_clock::now();
+        
+        auto duration = duration_cast<microseconds>(end - start);
+        TestResult result{"extract", "boost::regex", "File extensions", duration.count(), static_cast<int>(extensions.size())};
+        all_results.push_back(result);
+        print_test_result(result);
+        
+        cout << "boost::regex found " << extensions.size() << " unique extensions:\n";
+        for (const auto& ext : extensions) {
+            cout << ext << " ";
+        }
+        cout << "\n\n";
+    } catch (const exception& e) {
+        cerr << "boost::regex extensions error: " << e.what() << endl;
+    }
+}
+
+void test_pcre_extensions(const vector<string>& paths) {
+    try {
+        int errnum;
+        PCRE2_SIZE erroff;
+        pcre2_code* re = pcre2_compile(
+            (PCRE2_SPTR8)file_extension_pattern.c_str(),
+            PCRE2_ZERO_TERMINATED,
+            0,
+            &errnum,
+            &erroff,
+            nullptr
+        );
+        
+        if (!re) {
+            PCRE2_UCHAR buffer[256];
+            pcre2_get_error_message(errnum, buffer, sizeof(buffer));
+            cerr << "PCRE compilation failed: " << buffer << endl;
+            return;
+        }
+        
+        pcre2_match_data* match_data = pcre2_match_data_create_from_pattern(re, nullptr);
+        unordered_set<string> extensions;
+        
+        auto start = high_resolution_clock::now();
+        for (const auto& path : paths) {
+            int rc = pcre2_match(
+                re,
+                (PCRE2_SPTR8)path.c_str(),
+                path.length(),
+                0,
+                0,
+                match_data,
+                nullptr
+            );
+            
+            if (rc > 1) { // Есть как минимум одна группа захвата
+                PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(match_data);
+                size_t start = ovector[2];
+                size_t end = ovector[3];
+                if (start != PCRE2_UNSET && end != PCRE2_UNSET) {
+                    extensions.insert(path.substr(start, end - start));
+                }
+            }
+        }
+        auto end_time = high_resolution_clock::now();
+        
+        auto duration = duration_cast<microseconds>(end_time - start);
+        TestResult result{"extract", "PCRE", "File extensions", duration.count(), static_cast<int>(extensions.size())};
+        all_results.push_back(result);
+        print_test_result(result);
+        
+        cout << "PCRE found " << extensions.size() << " unique extensions:\n";
+        for (const auto& ext : extensions) {
+            cout << ext << " ";
+        }
+        cout << "\n\n";
+        
+        pcre2_match_data_free(match_data);
+        pcre2_code_free(re);
+    } catch (const exception& e) {
+        cerr << "PCRE extensions error: " << e.what() << endl;
+    }
+}
+
+void test_re2_extensions(const vector<string>& paths) {
+    try {
+        RE2 re(file_extension_pattern);
+        if (!re.ok()) {
+            cerr << "RE2 compilation failed: " << re.error() << endl;
+            return;
+        }
+        
+        unordered_set<string> extensions;
+        string ext;
+        
+        auto start = high_resolution_clock::now();
+        for (const auto& path : paths) {
+            if (RE2::PartialMatch(path, re, &ext)) {
+                extensions.insert(ext);
+            }
+        }
+        auto end_time = high_resolution_clock::now();
+        
+        auto duration = duration_cast<microseconds>(end_time - start);
+        TestResult result{"extract", "RE2", "File extensions", duration.count(), static_cast<int>(extensions.size())};
+        all_results.push_back(result);
+        print_test_result(result);
+        
+        cout << "RE2 found " << extensions.size() << " unique extensions:\n";
+        for (const auto& ext : extensions) {
+            cout << ext << " ";
+        }
+        cout << "\n\n";
+    } catch (const exception& e) {
+        cerr << "RE2 extensions error: " << e.what() << endl;
+    }
+}
+
 int main() {
     // Тестирование компиляции регулярных выражений
     cout << "\n=== Testing REGEX COMPILATION ===\n";
@@ -477,5 +639,31 @@ int main() {
         test_re2_search(text, name, pattern);
     }
 
+     cout << "\n\n=== Testing FILE EXTENSIONS EXTRACTION ===\n";
+    ifstream paths_file("file_formats_tests.txt"); // Файл с 1 млн путей
+    if (!paths_file) {
+        cerr << "Cannot open file_formats_tests.txt\n";
+        return 1;
+    }
+
+    vector<string> paths;
+    string path;
+    while (getline(paths_file, path)) {
+        paths.push_back(path);
+    }
+    paths_file.close();
+
+    cout << "\nLoaded " << paths.size() << " paths for extensions extraction testing\n";
+    cout << "Warming up cache... ";
+    warmup_cache(paths);
+    cout << "done\n";
+
+    print_results_header();
+    test_std_regex_extensions(paths);
+    test_boost_regex_extensions(paths);
+    test_pcre_extensions(paths);
+    test_re2_extensions(paths);
+
     return 0;
+
 }
