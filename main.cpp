@@ -30,7 +30,7 @@ const vector<pair<string, string>> word_patterns = {
     {"5-letter palindromes", "^(.)(.).\\2\\1$"}
 };
 
-// Паттерны для поиска в "Войне и мире"
+// Шаблоны для поиска в "Войне и мире"
 const vector<pair<string, string>> war_and_peace_patterns = {
     {"Russian names", "\\b[A-Z][a-z]*(ov|ev|in|sky|aya)\\b"},
     {"French phrases", "\\b[a-zA-ZÀ-ÿ]+\\s[a-zA-ZÀ-ÿ]+\\b"},
@@ -42,6 +42,21 @@ const vector<pair<string, string>> war_and_peace_patterns = {
     {"Philosophical terms", R"(\b(life|death|love|war|peace|destiny)\b)"},
     {"Long sentences", R"(\b(\w+\s+){20,}\w+\b)"}
 };
+
+// Шаблоны для поиска в русской версии "Войны и мира"
+const vector<pair<string, string>> war_and_peace_russian_patterns = {
+    {"Русские имена", R"(\b[А-Я][а-я]+(ов|ев|ин|ский|ая)\b)"},
+    {"Военные термины", R"(\b(полк|батальон|кавалерия|пехота|артиллерия)\b)"},
+    {"Аристократические титулы", R"(\b(князь|граф|графиня|барон|герцог)\s[А-Я][а-я]+\b)"},
+    {"Описания природы", R"(\b(закат|лунный\sсвет|снег|лес|река|поле)\b)"},
+    {"Эмоциональные выражения", R"(\b(вздохнул|заплакал|засмеялся|воскликнул|прошептал)\b)"},
+    {"Исторические даты", R"(\b(1[0-9]{3}|20[0-9]{2})\b)"},
+    {"Философские понятия", R"(\b(жизнь|смерть|любовь|война|мир|судьба)\b)"},
+    {"Длинные предложения", R"(\b(\w+\s+){20,}\w+\b)"},
+    {"Прямая речь", R"((—\s*[А-Я].*?[.!?])(?=\s*—|$))"},
+    {"Французские фразы", R"(\b[А-Яа-я]+\s[А-Яа-я]+\s[А-Яа-я]+\b)"}
+};
+
 
 struct TestResult {
     string operation;
@@ -585,7 +600,7 @@ string get_filename_without_extension(const string& path) {
     return path.substr(last_slash == string::npos ? 0 : last_slash + 1);
 }
 
-//паттерн для поиска файлов по имени без учета расширения
+// Шаблон для поиска файлов по имени без учета расширения
 const string filename_pattern = R"(^.*[\\/](file\d+)(?:\.[a-zA-Z0-9]+)?$)";
 
 // Функции для тестирования поиска файлов по имени
@@ -824,6 +839,25 @@ int main() {
         test_boost_regex_search(text, name, pattern);
         test_pcre_search(text, name, pattern);
         test_re2_search(text, name, pattern);
+    }
+
+    cout << "\n\n=== Testing RUSSIAN TEXT SEARCH ===\n";
+    string russian_text = read_file_to_string("search_russian.txt");
+    if (russian_text.empty()) {
+        cerr << "Failed to read search_russian.txt" << endl;
+        return;
+    }
+
+    cout << "Loaded Russian War and Peace text (" << russian_text.size() << " characters)\n";
+    print_results_header();
+
+    for (const auto& [name, pattern] : war_and_peace_russian_patterns) {
+        cout << "\nTesting pattern: " << name << " (" << pattern << ")\n";
+        
+        test_std_regex_search(russian_text, name, pattern);
+        test_boost_regex_search(russian_text, name, pattern);
+        test_pcre_search(russian_text, name, pattern);
+        test_re2_search(russian_text, name, pattern);
     }
 
      cout << "\n\n=== Testing FILE EXTENSIONS EXTRACTION ===\n";
